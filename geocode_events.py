@@ -30,7 +30,7 @@ from geopy.extra.rate_limiter import RateLimiter
 
 INPUT_XLSX = "/Users/murathanku/PycharmProjects/SMHI_event_extraction/output_swe/gpt-5-mini_events.xlsx"
 OUTPUT_XLSX = "gpt-5.1-mini_events_geocoded.xlsx"
-OUTPUT_DB = "gpt-5.1-mini.db"
+OUTPUT_DB = "gpt-5.1-mini-small.db"
 
 COUNTRY_SUFFIX = ", Sweden"  # helps disambiguate place names
 
