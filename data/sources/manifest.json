@@ -1,0 +1,22 @@
+{
+  "denmark.xlsx": {
+    "country": "Denmark",
+    "origin": "denmark/gpt-5.6-luna/medium/events_geocoded.xlsx",
+    "sha256": "d044fd53be3540e247e0d53edc56967556f1c01fdc52cabbb12a59eaa21a26f2"
+  },
+  "finland.xlsx": {
+    "country": "Finland",
+    "origin": "finland/gpt-5.6-luna/medium/events_geocoded.xlsx",
+    "sha256": "17ba44815c3af84070be43591dfaf072ef01199900056922ea8a22f0b4fadfd4"
+  },
+  "norway.xlsx": {
+    "country": "Norway",
+    "origin": "norway/gpt-5.6-luna/medium/events_geocoded.xlsx",
+    "sha256": "1bf30e16bfa8963e27bcc8cf294d859f910c483d063ed52db4a47654df1a3f21"
+  },
+  "sweden.xlsx": {
+    "country": "Sweden",
+    "origin": "sweden/gpt-5.6-luna/medium/events_geocoded.xlsx",
+    "sha256": "bac3204b32c7d94c972a667d916884d0852fd21c8bb01815c2881cf0476a7dc2"
+  }
+}

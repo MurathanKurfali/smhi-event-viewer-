@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <link rel="stylesheet" href="vendor/MarkerCluster.css">
+  <style>
+    html, body, #map { margin: 0; height: 100%; width: 100%; }
+    body { font: 14px system-ui, sans-serif; }
+    #map { border-radius: 8px; background: #edf2f3; }
+    .event-symbol { text-align: center; font-size: 20px; line-height: 24px; text-shadow: 0 0 3px white; }
+    .event-cluster { display: flex; align-items: center; justify-content: center; background: #16465a;
+      color: white; border: 3px solid white; border-radius: 50%; box-shadow: 0 1px 5px #0004;
+      font: 600 12px system-ui, sans-serif; box-sizing: border-box; }
+    .fit-control { padding: 7px 10px; border: 0; background: white; color: #16465a; cursor: pointer;
+      font: 600 13px system-ui, sans-serif; border-radius: 4px; }
+    .leaflet-popup-content { font: 13px/1.5 system-ui, sans-serif; max-height: 310px; overflow: auto; }
+    .leaflet-popup-content h3 { font-size: 15px; margin: 0 0 6px; }
+    .leaflet-popup-content dl { margin: 8px 0 0; }
+    .leaflet-popup-content dt { color: #536573; font-size: 11px; }
+    .leaflet-popup-content dd { margin: 0 0 5px; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .legend { padding: 7px 10px; border-radius: 4px; background: #fffffff2; color: #193544;
+      box-shadow: 0 1px 5px #0003; line-height: 1.7; font-size: 12px; }
+    .legend span { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; }
+  </style>
+</head>
+<body>
+<div id="map" role="region" aria-label="Weather events map"></div>
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster.js"></script>
+<script>
+  // Streamlit's message protocol needs no JS build system or component framework.
+  const send = (type, data = {}) => window.parent.postMessage({isStreamlitMessage: true, type, ...data}, '*');
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
+  let map, tiles, layer, renderKey, basemap, popup, selectedId, selectionBounds;
+  const tileFilters = {Light: 'grayscale(1) brightness(1.06)',
+    Dark: 'invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9)', OpenStreetMap: ''};
+
+  function showDetails(details) {
+    if (!popup || !map.hasLayer(popup) || details?.marker_id !== selectedId) return;
+    let html = `<h3>${escape(details.country)} · ${escape(details.category)}</h3><dl>`;
+    for (const [key, value] of Object.entries(details.fields)) {
+      if (key === 'Date Basis' || key === 'Measurement ID') continue;
+      if (value !== null && value !== '') html += `<dt>${escape(key)}</dt><dd>${escape(value)}</dd>`;
+    }
+    popup.setContent(html + '</dl>');
+  }
+
+  function render(args) {
+    send('streamlit:setFrameHeight', {height: args.height});
+    document.body.style.height = args.height + 'px';
+    if (!map) {
+      map = L.map('map', {preferCanvas: true, zoomControl: true});
+      if (args.points.length) map.fitBounds(args.points.map(point => [point[0], point[1]]), {padding: [24, 24], maxZoom: 8});
+      else map.setView([64, 18], 4);
+      L.control.scale({imperial: false}).addTo(map);
+      const fit = L.control({position: 'topright'});
+      fit.onAdd = () => {
+        const button = L.DomUtil.create('button', 'fit-control leaflet-bar');
+        button.type = 'button'; button.textContent = 'Fit events'; button.title = 'Fit all selected events';
+        L.DomEvent.disableClickPropagation(button);
+        button.onclick = () => { if (selectionBounds) map.fitBounds(selectionBounds, {padding: [24, 24], maxZoom: 11}); };
+        return button;
+      };
+      fit.addTo(map);
+      const legend = L.control({position: 'bottomright'});
+      legend.onAdd = () => {
+        const box = L.DomUtil.create('div', 'legend');
+        for (const [name, style] of Object.entries(args.categories)) {
+          box.innerHTML += `<div><span style="background:${escape(style.color)}"></span>${escape(name)}</div>`;
+        }
+        L.DomEvent.disableClickPropagation(box);
+        return box;
+      };
+      legend.addTo(map);
+      // Pan, zoom and popup interaction stay entirely in the browser.
+      new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
+    }
+    if (basemap !== args.basemap) {
+      if (!tiles) tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19
+      }).addTo(map);
+      map.getPane('tilePane').style.filter = tileFilters[args.basemap] || '';
+      document.getElementById('map').style.background = args.basemap === 'Dark' ? '#17232c' : '#edf2f3';
+      basemap = args.basemap;
+    }
+    const nextKey = JSON.stringify([args.data_key, args.marker_style, args.cluster]);
+    if (nextKey !== renderKey) {
+      const firstRender = renderKey === undefined;
+      if (layer) map.removeLayer(layer);
+      map.closePopup(); popup = null; selectedId = null;
+      const markers = args.points.map(([lat, lon, category, count, id]) => {
+        const style = args.categories[category] || {color: '#627b87', emoji: '●', dot: '⚫'};
+        const marker = args.marker_style === 'Circles'
+          ? L.circleMarker([lat, lon], {radius: 5, color: '#fff', weight: 1, fillColor: style.color, fillOpacity: 0.9})
+          : L.marker([lat, lon], {icon: L.divIcon({className: 'event-symbol', iconSize: [24, 24],
+              html: escape(args.marker_style === 'Weather icons' ? style.emoji : style.dot)})});
+        marker.options.eventCount = count;
+        marker.bindTooltip(`${escape(category)} · ${count.toLocaleString()} event${count === 1 ? '' : 's'}`);
+        marker.on('click', () => {
+          selectedId = id;
+          popup = L.popup({maxWidth: 340}).setLatLng([lat, lon])
+            .setContent(`<h3>${escape(category)}</h3>${count.toLocaleString()} event${count === 1 ? '' : 's'} at this location. Loading details…`).openOn(map);
+          send('streamlit:setComponentValue', {value: {id, data_key: args.data_key}, dataType: 'json'});
+        });
+        return marker;
+      });
+      selectionBounds = markers.length ? L.latLngBounds(markers.map(marker => marker.getLatLng())) : null;
+      if (args.cluster) {
+        layer = L.markerClusterGroup({animate: false, showCoverageOnHover: false, chunkedLoading: true,
+          chunkInterval: 25, chunkDelay: 10,
+          iconCreateFunction: cluster => {
+            const count = cluster.getAllChildMarkers().reduce((sum, marker) => sum + marker.options.eventCount, 0);
+            return L.divIcon({html: count.toLocaleString(), className: 'event-cluster', iconSize: [46, 46]});
+          }}).addTo(map);
+        layer.addLayers(markers);
+      } else {
+        layer = L.layerGroup(markers).addTo(map);
+      }
+      if (firstRender && selectionBounds) map.fitBounds(selectionBounds, {padding: [24, 24], maxZoom: 8});
+      renderKey = nextKey;
+    }
+    showDetails(args.details);
+  }
+  window.addEventListener('message', event => {
+    if (event.source === window.parent && event.data.type === 'streamlit:render') render(event.data.args);
+  });
+  send('streamlit:componentReady', {apiVersion: 1});
+</script>
+</body>
+</html>
