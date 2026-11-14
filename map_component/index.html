@@ -92,10 +92,8 @@
       map.closePopup(); popup = null; selectedId = null;
       const markers = args.points.map(([lat, lon, category, count, id]) => {
         const style = args.categories[category] || {color: '#627b87', emoji: '●', dot: '⚫'};
-        const marker = args.marker_style === 'Circles'
-          ? L.circleMarker([lat, lon], {radius: 5, color: '#fff', weight: 1, fillColor: style.color, fillOpacity: 0.9})
-          : L.marker([lat, lon], {icon: L.divIcon({className: 'event-symbol', iconSize: [24, 24],
-              html: escape(args.marker_style === 'Weather icons' ? style.emoji : style.dot)})});
+        const marker = L.marker([lat, lon], {icon: L.divIcon({className: 'event-symbol', iconSize: [24, 24],
+          html: escape(args.marker_style === 'Weather icons' ? style.emoji : style.dot)})});
         marker.options.eventCount = count;
         marker.bindTooltip(`${escape(category)} · ${count.toLocaleString()} event${count === 1 ? '' : 's'}`);
         marker.on('click', () => {

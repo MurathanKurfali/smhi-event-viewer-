@@ -142,7 +142,7 @@ def main():
         categories = st.multiselect("Event categories", meta["categories"], default=meta["categories"], key="categories")
         st.caption("An empty selection includes all options.")
         st.divider()
-        marker_style = st.selectbox("Marker style", ["Circles", "Colored dots", "Weather icons"])
+        marker_style = st.selectbox("Marker style", ["Colored dots", "Weather icons"])
         cluster = st.checkbox("Cluster markers", value=True)
         basemap = st.selectbox("Basemap", ["Light", "Dark", "OpenStreetMap"])
         st.divider()
